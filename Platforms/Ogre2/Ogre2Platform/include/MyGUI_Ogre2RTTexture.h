@@ -21,7 +21,7 @@ namespace MyGUI
 		public IRenderTarget
 	{
 	public:
-		Ogre2RTTexture(Ogre::TexturePtr _texture);
+		Ogre2RTTexture(Ogre::TextureGpu* _texture);
 		virtual ~Ogre2RTTexture();
 
 		virtual void begin();
@@ -36,9 +36,9 @@ namespace MyGUI
 
 	private:
 		RenderTargetInfo mRenderTargetInfo;
-		Ogre::Viewport* mViewport;
-		Ogre::Viewport* mSaveViewport;
-		Ogre::TexturePtr mTexture;
+		Ogre::RenderPassDescriptor* mRenderPassDesc;
+		Ogre::RenderPassDescriptor* mSaveRenderPassDesc;
+		Ogre::TextureGpu* mTexture;
 		Ogre::Matrix4 mProjectMatrix;
 	};
 

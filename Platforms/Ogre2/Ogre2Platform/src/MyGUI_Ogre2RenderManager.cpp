@@ -13,17 +13,20 @@
 #include "MyGUI_Gui.h"
 
 #include <Compositor/OgreCompositorManager2.h>
+#include <OgreTextureGpu.h>
+#include <OgreTextureGpuManager.h>
+#include <OgreWindow.h>
 
 namespace MyGUI
 {
 	const Ogre::uint8 Ogre2RenderManager::RENDER_QUEUE_OVERLAY = 254;
 	Ogre::IdString OgreCompositorPassProvider::mPassId = Ogre::IdString("MYGUI");
 
-	MyGUIPass::MyGUIPass(const Ogre::CompositorPassDef *definition, const Ogre::CompositorChannel &target,
+	MyGUIPass::MyGUIPass(const Ogre::CompositorPassDef *definition, const Ogre::RenderTargetViewDef *target,
 		Ogre::CompositorNode *parentNode)
-		: Ogre::CompositorPass(definition, target, parentNode)
+		: Ogre::CompositorPass(definition, parentNode)
 	{
-
+		this->initialize(target);
 	}
 
 	void MyGUIPass::execute(const Ogre::Camera *lodCameraconst)
@@ -51,7 +54,7 @@ namespace MyGUI
 	{
 	}
 
-	void Ogre2RenderManager::initialise(Ogre::RenderWindow* _window, Ogre::SceneManager* _scene)
+	void Ogre2RenderManager::initialise(Ogre::Window* _window, Ogre::SceneManager* _scene)
 	{
 		MYGUI_PLATFORM_ASSERT(!mIsInitialise, getClassTypeName() << " initialised twice");
 		MYGUI_PLATFORM_LOG(Info, "* Initialise: " << getClassTypeName());
@@ -151,7 +154,7 @@ namespace MyGUI
 		return mRenderSystem;
 	}
 
-	void Ogre2RenderManager::setRenderWindow(Ogre::RenderWindow* _window)
+	void Ogre2RenderManager::setRenderWindow(Ogre::Window* _window)
 	{
 		// отписываемся
 		if (mWindow != nullptr)
@@ -179,7 +182,7 @@ namespace MyGUI
 		mSceneManager = _scene;
 		if (mSceneManager != nullptr)
 		{
-			mSceneManager->getRenderQueue()->setSortRenderQueue(RENDER_QUEUE_OVERLAY, false);
+			mSceneManager->getRenderQueue()->setSortRenderQueue(RENDER_QUEUE_OVERLAY, Ogre::RenderQueue::DisableSort);
 		}
 	}
 
@@ -250,7 +253,7 @@ namespace MyGUI
 	}
 
 	// для оповещений об изменении окна рендера
-	void Ogre2RenderManager::windowResized(Ogre::RenderWindow* _window)
+	void Ogre2RenderManager::windowResized(Ogre::Window* _window)
 	{
 
 		mViewSize.set(_window->getWidth(), _window->getHeight());
@@ -320,9 +323,16 @@ namespace MyGUI
 		MapTexture::const_iterator item = mTextures.find(_name);
 		if (item == mTextures.end())
 		{
-			Ogre::TexturePtr texture = (Ogre::TexturePtr)Ogre::TextureManager::getSingleton().getByName(_name);
-			if (!texture.isNull())
-			{
+			Ogre::TextureGpuManager *textureMgr = Ogre::Root::getSingletonPtr()->getRenderSystem()->getTextureGpuManager();
+			const Ogre::String* name = textureMgr->findResourceNameStr(_name);
+			if (name) {
+				Ogre::TextureGpu *texture = textureMgr->createOrRetrieveTexture(
+					_name,
+					Ogre::GpuPageOutStrategy::Discard,
+					Ogre::TextureFlags::PrefersLoadingFromFileAsSRGB,
+					Ogre::TextureTypes::Type2D,
+					Ogre::ResourceGroupManager::
+					AUTODETECT_RESOURCE_GROUP_NAME);
 				ITexture* result = createTexture(_name);
 				static_cast<Ogre2Texture*>(result)->setOgreTexture(texture);
 				return result;
@@ -334,10 +344,8 @@ namespace MyGUI
 
 	bool Ogre2RenderManager::isFormatSupported(PixelFormat _format, TextureUsage _usage)
 	{
-		return Ogre::TextureManager::getSingleton().isFormatSupported(
-			Ogre::TEX_TYPE_2D,
-			Ogre2Texture::convertFormat(_format),
-			Ogre2Texture::convertUsage(_usage));
+		if (_format == PixelFormat::L8A8) return false; // Not supported
+		return true; // FIXME
 	}
 
 	void Ogre2RenderManager::destroyAllResources()
@@ -381,7 +389,7 @@ namespace MyGUI
 		return mInfo;
 	}
 
-	Ogre::RenderWindow* Ogre2RenderManager::getRenderWindow()
+	Ogre::Window* Ogre2RenderManager::getRenderWindow()
 	{
 		return mWindow;
 	}

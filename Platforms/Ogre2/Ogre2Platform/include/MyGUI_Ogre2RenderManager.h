@@ -41,7 +41,7 @@ namespace MyGUI
 	class MyGUIPass : public Ogre::CompositorPass
 	{
 	public:
-		MyGUIPass(const Ogre::CompositorPassDef *definition, const Ogre::CompositorChannel &target,
+		MyGUIPass(const Ogre::CompositorPassDef *definition, const Ogre::RenderTargetViewDef *target,
 			Ogre::CompositorNode *parentNode);
 
 		virtual void execute(const Ogre::Camera *lodCameraconst);
@@ -61,10 +61,10 @@ namespace MyGUI
 		{
 			if (customId == mPassId)
 				return OGRE_NEW MyGUI::MyGUIPassDef(parentTargetDef);
-		}
+		};
 
 		Ogre::CompositorPass* addPass(const Ogre::CompositorPassDef *definition, Ogre::Camera *defaultCamera,
-			Ogre::CompositorNode *parentNode, const Ogre::CompositorChannel &target,
+			Ogre::CompositorNode *parentNode, const Ogre::RenderTargetViewDef *target,
 			Ogre::SceneManager *sceneManager)
 		{
 			return OGRE_NEW MyGUI::MyGUIPass(definition, target, parentNode);
@@ -86,7 +86,7 @@ namespace MyGUI
 		// FrameListener
 		bool frameStarted(const Ogre::FrameEvent &evt);
 
-		void initialise(Ogre::RenderWindow* _window, Ogre::SceneManager* _scene);
+		void initialise(Ogre::Window* _window, Ogre::SceneManager* _scene);
 		void shutdown();
 
 		static Ogre2RenderManager& getInstance();
@@ -127,13 +127,13 @@ namespace MyGUI
 		void setRenderSystem(Ogre::RenderSystem* _render);
 		Ogre::RenderSystem* getRenderSystem();
 
-		void setRenderWindow(Ogre::RenderWindow* _window);
+		void setRenderWindow(Ogre::Window* _window);
 
 		/** Set scene manager where MyGUI will be rendered */
 		void setSceneManager(Ogre::SceneManager* _scene);
 		Ogre::SceneManager* getSceneManager();
 
-		Ogre::RenderWindow* getRenderWindow();
+		Ogre::Window* getRenderWindow();
 
 		bool getManualRender();
 		void setManualRender(bool _value);
@@ -147,7 +147,7 @@ namespace MyGUI
 #endif
 
 	private:
-		virtual void windowResized(Ogre::RenderWindow* _window);
+		virtual void windowResized(Ogre::Window* _window);
 
 		// восстанавливаем буферы
 		virtual void eventOccurred(const Ogre::String& eventName, const Ogre::NameValuePairList* parameters);
@@ -166,7 +166,7 @@ namespace MyGUI
 		VertexColourType mVertexFormat;
 
 		// окно, на которое мы подписываемся для изменения размеров
-		Ogre::RenderWindow* mWindow;
+		Ogre::Window* mWindow;
 
 		Ogre::RenderSystem* mRenderSystem;
 
@@ -194,7 +194,7 @@ namespace MyGUI
 
 		Ogre2GuiRenderable* createOrRetrieveRenderable(IVertexBuffer* _buffer , ITexture* _texture , size_t _count);
 
-		std::auto_ptr<OgreCompositorPassProvider> mPassProvider;
+		std::unique_ptr<OgreCompositorPassProvider> mPassProvider;
 	};
 
 } // namespace MyGUI

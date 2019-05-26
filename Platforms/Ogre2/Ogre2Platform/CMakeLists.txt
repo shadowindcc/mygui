@@ -4,6 +4,8 @@ include_directories(
  include
  ${MYGUI_SOURCE_DIR}/MyGUIEngine/include
  ${OGRE_INCLUDE_DIR}
+ ${OGRE_INCLUDE_DIR}/HLMS/Unlit
+ ${OGRE_INCLUDE_DIR}/HLMS/Common
  ${OGRE_SOURCE_DIR}
 )
 

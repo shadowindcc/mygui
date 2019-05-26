@@ -10,7 +10,13 @@
 #include "MyGUI_Ogre2RenderManager.h"
 #include "MyGUI_Ogre2Diagnostic.h"
 #include "MyGUI_Ogre2RTTexture.h"
+
 #include <Ogre.h>
+#include "OgreTextureGpu.h"
+#include "OgreTextureGpuManager.h"
+#include "OgrePixelFormatGpu.h"
+#include "OgrePixelFormatGpuUtils.h"
+#include "OgreStagingTexture.h"
 
 #include "MyGUI_LastHeader.h"
 
@@ -21,7 +27,7 @@ namespace MyGUI
 		mName(_name),
 		mGroup(_group),
 		mNumElemBytes(0),
-		mPixelFormat(Ogre::PF_UNKNOWN),
+		mPixelFormat(Ogre::PFG_UNKNOWN),
 		mUsage(Ogre::TU_DEFAULT),
 		mListener(nullptr),
 		mRenderTarget(nullptr)
@@ -45,9 +51,7 @@ namespace MyGUI
 	{
 		Ogre::uchar* readrefdata = static_cast<Ogre::uchar*>(lock(TextureUsage::Read));
 
-		Ogre::Image img;
-		img = img.loadDynamicImage(readrefdata, mTexture->getWidth(), mTexture->getHeight(), mTexture->getFormat());
-		img.save(_filename);
+		// TODO: Save to file
 
 		unlock();
 	}
@@ -71,10 +75,11 @@ namespace MyGUI
 			mRenderTarget = nullptr;
 		}
 
-		if (!mTexture.isNull())
+		if (mTexture)
 		{
-			Ogre::TextureManager::getSingleton().remove(mTexture->getName());
-			mTexture.setNull();
+			Ogre::TextureGpuManager *textureMgr = Ogre::Root::getSingletonPtr()->getRenderSystem()->getTextureGpuManager();
+			textureMgr->destroyTexture(mTexture);
+			mTexture = nullptr;
 		}
 	}
 
@@ -90,44 +95,58 @@ namespace MyGUI
 
 	void* Ogre2Texture::lock(TextureUsage _access)
 	{
-		if (_access == TextureUsage::Write)
+		if (_access == TextureUsage::Write) 
 		{
-			return mTexture->getBuffer()->lock(Ogre::v1::HardwareBuffer::HBL_DISCARD);
+			const uint32 rowAlignment = 4u;
+			const size_t dataSize = Ogre::PixelFormatGpuUtils::getSizeBytes(mTexture->getWidth(), mTexture->getHeight(), 1u, 1u,
+				mTexture->getPixelFormat(),
+				rowAlignment);
+			uint8 *imageData = reinterpret_cast<uint8*>(OGRE_MALLOC_SIMD(dataSize, Ogre::MEMCATEGORY_RESOURCE));
+			mTmpData.data = imageData;
+			return mTmpData.data;			
 		}
-
-		// здесь проверить режим создания, и возможно так залочить без пиксель бокса
-
-		// для чтения копируем в пиксель бокс
-		if (mTmpData.data != nullptr)
+		else 
 		{
-			delete [] (uint8*)mTmpData.data;
-			mTmpData.data = nullptr;
+			//TODO: FIXME
+			return nullptr;
 		}
-
-		mTmpData = Ogre::PixelBox(mTexture->getWidth(), mTexture->getHeight(), mTexture->getDepth(), mTexture->getFormat());
-		mTmpData.data = new uint8[mTexture->getBuffer()->getSizeInBytes()];
-
-		mTexture->getBuffer()->blitToMemory(mTmpData);
-
-		return mTmpData.data;
 	}
 
 	void Ogre2Texture::unlock()
 	{
-		if (mTexture->getBuffer()->isLocked())
-		{
-			mTexture->getBuffer()->unlock();
-		}
-		else if (mTmpData.data != nullptr)
-		{
-			delete [] (uint8*)mTmpData.data;
+		Ogre::TextureGpuManager *textureManager = Ogre::Root::getSingletonPtr()->getRenderSystem()->getTextureGpuManager();
+		
+		if (mTmpData.data != nullptr)
+		 {
+			// write
+			uint8 *imageData = reinterpret_cast<uint8*>(mTmpData.data);
+			const size_t bytesPerRow = mTexture->_getSysRamCopyBytesPerRow(0);
+		
+			mTexture->_transitionTo(Ogre::GpuResidency::Resident, imageData);
+			mTexture->_setNextResidencyStatus(Ogre::GpuResidency::Resident);
+		
+			Ogre::StagingTexture *stagingTexture = textureManager->getStagingTexture(mTexture->getWidth(), mTexture->getHeight(),
+				1u, 1u,
+				mTexture->getPixelFormat());
+			stagingTexture->startMapRegion();
+			Ogre::TextureBox texBox = stagingTexture->mapRegion(mTexture->getWidth(), mTexture->getHeight(), 1u, 1u,
+				mTexture->getPixelFormat());
+			texBox.copyFrom(imageData, mTexture->getWidth(), mTexture->getHeight(), bytesPerRow);
+			stagingTexture->stopMapRegion();
+			stagingTexture->upload(texBox, mTexture, 0, 0, 0, true);
+			textureManager->removeStagingTexture(stagingTexture);
+			stagingTexture = 0;
+		
+			OGRE_FREE_SIMD(imageData, Ogre::MEMCATEGORY_RESOURCE);
 			mTmpData.data = nullptr;
+			mTexture->notifyDataIsReady();
 		}
 	}
 
 	bool Ogre2Texture::isLocked()
 	{
-		return mTexture->getBuffer()->isLocked();
+		// TODO: FIXME
+		return false;
 	}
 
 	Ogre::TextureUsage Ogre2Texture::convertUsage(TextureUsage _usage)
@@ -176,14 +195,14 @@ namespace MyGUI
 		return Ogre::TU_DEFAULT;
 	}
 
-	Ogre::PixelFormat Ogre2Texture::convertFormat(PixelFormat _format)
+	Ogre::PixelFormatGpu Ogre2Texture::convertFormat(PixelFormat _format)
 	{
-		if (_format == PixelFormat::L8) return Ogre::PF_BYTE_L;
-		else if (_format == PixelFormat::L8A8) return Ogre::PF_BYTE_LA;
-		else if (_format == PixelFormat::R8G8B8) return Ogre::PF_R8G8B8;
-		else if (_format == PixelFormat::R8G8B8A8) return Ogre::PF_A8R8G8B8;
+		if (_format == PixelFormat::L8) return Ogre::PFG_R8_UNORM;
+		else if (_format == PixelFormat::L8A8) return Ogre::PFG_RG8_UNORM;
+		else if (_format == PixelFormat::R8G8B8) return Ogre::PFG_RGBA8_UNORM;
+		else if (_format == PixelFormat::R8G8B8A8) return Ogre::PFG_RGBA8_UNORM;
 
-		return Ogre::PF_UNKNOWN;
+		return Ogre::PFG_UNKNOWN;
 	}
 
 	void Ogre2Texture::setFormat(PixelFormat _format)
@@ -209,19 +228,37 @@ namespace MyGUI
 		setFormat(_format);
 		setUsage(_usage);
 
-		mTexture = Ogre::TextureManager::getSingleton().createManual(
-			mName,
-			mGroup,
-			Ogre::TEX_TYPE_2D,
-			_width,
-			_height,
-			0,
-			mPixelFormat,
-			mUsage,
-			this,
-			true);
+		uint32 textureFlags = 0; // Ogre::TextureFlags::PrefersLoadingFromFileAsSRGB
+		if (_usage.isValue(TextureUsage::RenderTarget)) 
+		{
+			textureFlags |= Ogre::TextureFlags::RenderToTexture;
+		}
+		// TODO: Ogre::TextureFlags::Manual ?
 
-		mTexture->load();
+		Ogre::TextureGpuManager *textureMgr = Ogre::Root::getSingletonPtr()->getRenderSystem()->getTextureGpuManager();
+		mTexture = textureMgr->createOrRetrieveTexture(
+			mName,
+			Ogre::GpuPageOutStrategy::Discard,
+			textureFlags,
+			Ogre::TextureTypes::Type2D,
+			Ogre::ResourceGroupManager::
+			AUTODETECT_RESOURCE_GROUP_NAME);
+		
+		if (mTexture) 
+		{
+			mTexture->setResolution(_width, _height);
+			mTexture->setPixelFormat(mPixelFormat);
+		}
+
+		if (_usage.isValue(TextureUsage::RenderTarget)) 
+		{
+			textureFlags |= Ogre::TextureFlags::RenderToTexture;
+			if (mTexture->getNextResidencyStatus() != Ogre::GpuResidency::Resident) 
+			{
+				mTexture->_transitionTo(Ogre::GpuResidency::Resident, nullptr);
+				mTexture->_setNextResidencyStatus(Ogre::GpuResidency::Resident);
+			}
+		}
 
 		setDataBlockTexture(mTexture);
 	}
@@ -231,6 +268,7 @@ namespace MyGUI
 		setUsage(TextureUsage::Default);
 
 		Ogre::TextureManager* manager = Ogre::TextureManager::getSingletonPtr();
+		bool needLoadTexture = false;
 
 		if ( !manager->resourceExists(_filename) )
 		{
@@ -241,12 +279,33 @@ namespace MyGUI
 			}
 			else
 			{
-				mTexture = manager->load(_filename, mGroup, Ogre::TEX_TYPE_2D, 0, 1.0f , false , Ogre::PF_UNKNOWN, true);
+				needLoadTexture = true;
 			}
 		}
 		else
 		{
-			mTexture = manager->getByName(_filename);
+			needLoadTexture = true;
+		}
+
+		if (needLoadTexture) 
+		{
+			Ogre::TextureGpuManager *textureMgr = Ogre::Root::getSingletonPtr()->getRenderSystem()->getTextureGpuManager();
+			mTexture = textureMgr->createOrRetrieveTexture(
+				_filename,
+				Ogre::GpuPageOutStrategy::Discard,
+				Ogre::TextureFlags::PrefersLoadingFromFileAsSRGB,
+				Ogre::TextureTypes::Type2D,
+				Ogre::ResourceGroupManager::
+				AUTODETECT_RESOURCE_GROUP_NAME);
+			
+			if (mTexture) 
+			{
+				if (mTexture->getNextResidencyStatus() != Ogre::GpuResidency::Resident)
+				{
+					mTexture->scheduleTransitionTo(Ogre::GpuResidency::Resident);
+				}
+				mTexture->waitForData();
+			}
 		}
 
 		setFormatByOgreTexture();
@@ -257,29 +316,29 @@ namespace MyGUI
 	void Ogre2Texture::setFormatByOgreTexture()
 	{
 		mOriginalFormat = PixelFormat::Unknow;
-		mPixelFormat = Ogre::PF_UNKNOWN;
+		mPixelFormat = Ogre::PFG_UNKNOWN;
 		mNumElemBytes = 0;
 
-		if (!mTexture.isNull())
+		if (mTexture)
 		{
-			mPixelFormat = mTexture->getFormat();
+			mPixelFormat = mTexture->getPixelFormat();
 
-			if (mPixelFormat == Ogre::PF_BYTE_L)
+			if (mPixelFormat == Ogre::PixelFormatGpu::PFG_R8_UNORM)
 			{
 				mOriginalFormat = PixelFormat::L8;
 				mNumElemBytes = 1;
 			}
-			else if (mPixelFormat == Ogre::PF_BYTE_LA)
+			else if (mPixelFormat == Ogre::PixelFormatGpu::PFG_RG8_UNORM)
 			{
 				mOriginalFormat = PixelFormat::L8A8;
 				mNumElemBytes = 2;
 			}
-			else if (mPixelFormat == Ogre::PF_R8G8B8)
+			else if (mPixelFormat == Ogre::PixelFormatGpu::PFG_RGBA8_UNORM)
 			{
 				mOriginalFormat = PixelFormat::R8G8B8;
 				mNumElemBytes = 3;
 			}
-			else if (mPixelFormat == Ogre::PF_A8R8G8B8)
+			else if (mPixelFormat == Ogre::PixelFormatGpu::PFG_RGBA8_UNORM)
 			{
 				mOriginalFormat = PixelFormat::R8G8B8A8;
 				mNumElemBytes = 4;
@@ -287,9 +346,8 @@ namespace MyGUI
 			else
 			{
 				mOriginalFormat = PixelFormat::Unknow;
-				mNumElemBytes = Ogre::PixelUtil::getNumElemBytes(mPixelFormat);
+				mNumElemBytes = Ogre::PixelFormatGpuUtils::getBytesPerPixel(mPixelFormat);
 			}
-
 		}
 	}
 
@@ -307,9 +365,9 @@ namespace MyGUI
 		return mRenderTarget;
 	}
 
-	void Ogre2Texture::setDataBlockTexture( Ogre::TexturePtr _value )
+	void Ogre2Texture::setDataBlockTexture( Ogre::TextureGpu* _value )
 	{
-		mDataBlock->setTexture(TEXTURE_UNIT_NUMBER, 0, _value);
+		mDataBlock->setTexture(TEXTURE_UNIT_NUMBER, _value);
 	}
 
 	Ogre::HlmsDatablock* Ogre2Texture::getDataBlock()
