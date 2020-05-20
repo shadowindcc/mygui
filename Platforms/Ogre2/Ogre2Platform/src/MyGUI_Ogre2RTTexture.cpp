@@ -73,7 +73,7 @@ namespace MyGUI
 		//mSaveRenderPassDesc = system->getCurrentPassDescriptor();
 		Ogre::Vector4 viewportSize(0, 0, 1, 1);
 		Ogre::Vector4 scissors(0, 0, 1, 1);
-		system->beginRenderPassDescriptor(mRenderPassDesc, mTexture, 0, viewportSize, scissors, false, false);
+		system->beginRenderPassDescriptor(mRenderPassDesc, mTexture, 0, &viewportSize, &scissors, 1, false, false);
 	}
 
 	void Ogre2RTTexture::end()

@@ -224,6 +224,7 @@ namespace MyGUI
 		//This will add renderbles to the Ogre render queue
 		onRenderToTarget(this, mUpdate);
 
+		mSceneManager->getRenderQueue()->renderPassPrepare(false, false);
 		mSceneManager->getRenderQueue()->render(mSceneManager->getDestinationRenderSystem(), RENDER_QUEUE_OVERLAY, RENDER_QUEUE_OVERLAY+1, false, false);
 
 		// сбрасываем флаг

@@ -41,7 +41,7 @@ namespace MyGUI
 	class MyGUIPass : public Ogre::CompositorPass
 	{
 	public:
-		MyGUIPass(const Ogre::CompositorPassDef *definition, const Ogre::RenderTargetViewDef *target,
+		MyGUIPass(const Ogre::CompositorPassDef *definition, const Ogre::RenderTargetViewDef *rtv,
 			Ogre::CompositorNode *parentNode);
 
 		virtual void execute(const Ogre::Camera *lodCameraconst);
@@ -64,10 +64,10 @@ namespace MyGUI
 		};
 
 		Ogre::CompositorPass* addPass(const Ogre::CompositorPassDef *definition, Ogre::Camera *defaultCamera,
-			Ogre::CompositorNode *parentNode, const Ogre::RenderTargetViewDef *target,
+			Ogre::CompositorNode *parentNode, const Ogre::RenderTargetViewDef *rtv,
 			Ogre::SceneManager *sceneManager)
 		{
-			return OGRE_NEW MyGUI::MyGUIPass(definition, target, parentNode);
+			return OGRE_NEW MyGUI::MyGUIPass(definition, rtv, parentNode);
 		}
 
 		static Ogre::IdString mPassId;

@@ -15,7 +15,6 @@
 #include <OgrePrerequisites.h>
 #include <OgreRenderOperation.h>
 #include <OgreRenderSystem.h>
-#include <OgreTextureManager.h>
 #include <OgreTextureUnitState.h>
 
 #include "MyGUI_LastHeader.h"

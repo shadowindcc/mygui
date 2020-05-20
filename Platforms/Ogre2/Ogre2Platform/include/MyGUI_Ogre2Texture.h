@@ -15,8 +15,6 @@
 
 #include <Ogre.h>
 #include <OgreResource.h>
-#include <OgreTexture.h>
-#include <OgrePixelBox.h>
 #include <OgreSharedPtr.h>
 #include "OgrePixelFormatGpu.h"
 
@@ -110,7 +108,7 @@ namespace MyGUI
 
 		virtual IRenderTarget* getRenderTarget();
 
-		static Ogre::TextureUsage convertUsage(TextureUsage _usage);
+		//static Ogre::TextureUsage convertUsage(TextureUsage _usage);
 		static Ogre::PixelFormatGpu convertFormat(PixelFormat _format);
 	/*internal:*/
 		Ogre::TextureGpu* getOgreTexture()
@@ -145,11 +143,11 @@ namespace MyGUI
 		size_t mNumElemBytes;
 
 		Ogre::PixelFormatGpu mPixelFormat;
-		Ogre::TextureUsage mUsage;
+		//Ogre::TextureUsage mUsage;
 
 		ITextureInvalidateListener* mListener;
 		IRenderTarget* mRenderTarget;
-		Ogre::PixelBox mTmpData;
+		Ogre::uint8* mTmpData;
 
 		Ogre::HlmsUnlitDatablock* mDataBlock;
 

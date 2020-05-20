@@ -27,12 +27,12 @@ namespace MyGUI
 		mName(_name),
 		mGroup(_group),
 		mNumElemBytes(0),
-		mPixelFormat(Ogre::PFG_UNKNOWN),
-		mUsage(Ogre::TU_DEFAULT),
+		mPixelFormat(Ogre::PixelFormatGpu::PFG_UNKNOWN),
+		//mUsage(Ogre::TU_DEFAULT),
 		mListener(nullptr),
 		mRenderTarget(nullptr)
 	{
-		mTmpData.data = nullptr;
+		mTmpData = nullptr;
 
 		mDataBlock = HLMS_BLOCKS.createUnlitDataBlock(_name);
 	}
@@ -63,12 +63,6 @@ namespace MyGUI
 
 	void Ogre2Texture::destroy()
 	{
-		if (mTmpData.data != nullptr)
-		{
-			delete [] (uint8*)mTmpData.data;
-			mTmpData.data = nullptr;
-		}
-
 		if (mRenderTarget != nullptr)
 		{
 			delete mRenderTarget;
@@ -102,8 +96,8 @@ namespace MyGUI
 				mTexture->getPixelFormat(),
 				rowAlignment);
 			uint8 *imageData = reinterpret_cast<uint8*>(OGRE_MALLOC_SIMD(dataSize, Ogre::MEMCATEGORY_RESOURCE));
-			mTmpData.data = imageData;
-			return mTmpData.data;			
+			mTmpData = imageData;
+			return mTmpData;			
 		}
 		else 
 		{
@@ -116,10 +110,10 @@ namespace MyGUI
 	{
 		Ogre::TextureGpuManager *textureManager = Ogre::Root::getSingletonPtr()->getRenderSystem()->getTextureGpuManager();
 		
-		if (mTmpData.data != nullptr)
+		if (mTmpData != nullptr)
 		 {
 			// write
-			uint8 *imageData = reinterpret_cast<uint8*>(mTmpData.data);
+			uint8 *imageData = reinterpret_cast<uint8*>(mTmpData);
 			const size_t bytesPerRow = mTexture->_getSysRamCopyBytesPerRow(0);
 		
 			mTexture->_transitionTo(Ogre::GpuResidency::Resident, imageData);
@@ -138,7 +132,7 @@ namespace MyGUI
 			stagingTexture = 0;
 		
 			OGRE_FREE_SIMD(imageData, Ogre::MEMCATEGORY_RESOURCE);
-			mTmpData.data = nullptr;
+			mTmpData = nullptr;
 			mTexture->notifyDataIsReady();
 		}
 	}
@@ -149,7 +143,7 @@ namespace MyGUI
 		return false;
 	}
 
-	Ogre::TextureUsage Ogre2Texture::convertUsage(TextureUsage _usage)
+	/*Ogre::TextureUsage Ogre2Texture::convertUsage(TextureUsage _usage)
 	{
 		if (_usage == TextureUsage::Default)
 		{
@@ -193,7 +187,7 @@ namespace MyGUI
 			}
 		}
 		return Ogre::TU_DEFAULT;
-	}
+	}*/
 
 	Ogre::PixelFormatGpu Ogre2Texture::convertFormat(PixelFormat _format)
 	{
@@ -220,7 +214,7 @@ namespace MyGUI
 	void Ogre2Texture::setUsage(TextureUsage _usage)
 	{
 		mOriginalUsage = _usage;
-		mUsage = convertUsage(_usage);
+		//mUsage = convertUsage(_usage);
 	}
 
 	void Ogre2Texture::createManual(int _width, int _height, TextureUsage _usage, PixelFormat _format)
@@ -267,10 +261,9 @@ namespace MyGUI
 	{
 		setUsage(TextureUsage::Default);
 
-		Ogre::TextureManager* manager = Ogre::TextureManager::getSingletonPtr();
 		bool needLoadTexture = false;
 
-		if ( !manager->resourceExists(_filename) )
+		if ( false )
 		{
 			DataManager& resourcer = DataManager::getInstance();
 			if (!resourcer.isDataExist(_filename))
@@ -316,7 +309,7 @@ namespace MyGUI
 	void Ogre2Texture::setFormatByOgreTexture()
 	{
 		mOriginalFormat = PixelFormat::Unknow;
-		mPixelFormat = Ogre::PFG_UNKNOWN;
+		mPixelFormat = Ogre::PixelFormatGpu::PFG_UNKNOWN;
 		mNumElemBytes = 0;
 
 		if (mTexture)
